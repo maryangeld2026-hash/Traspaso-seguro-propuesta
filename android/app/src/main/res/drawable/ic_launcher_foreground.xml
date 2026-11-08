@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Celular con una marca de verificación, dentro de la zona segura de 66 dp del icono adaptable. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#EEF2FA"
+        android:strokeWidth="4"
+        android:pathData="M44,30 h20 a6,6 0 0 1 6,6 v36 a6,6 0 0 1 -6,6 h-20 a6,6 0 0 1 -6,-6 v-36 a6,6 0 0 1 6,-6 z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#B8F03C"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M45,54 l6,6 l12,-13" />
+</vector>

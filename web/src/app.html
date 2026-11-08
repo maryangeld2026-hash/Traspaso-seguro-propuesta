@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E14">
+<title>Traspaso seguro</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect x='6' y='2' width='16' height='24' rx='4' fill='%230B0E14' stroke='%23B8F03C' stroke-width='2'/%3E%3Cpath d='M10 14l3 3 5-6' fill='none' stroke='%23B8F03C' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+:root{
+  --bg:#0B0E14; --panel:#131824; --panel2:#1A2131; --line:#263047; --line2:#3A4766;
+  --ink:#EEF2FA; --ink2:#C3CBDD; --muted:#98A2B8;
+  --acc:#B8F03C; --acc-ink:#162300; --acc-bg:#1C260C; --acc-line:#4F6B14;
+  --ok:#5BE3A0; --ok-bg:#0E2A20; --bad:#FF7A70; --bad-bg:#2C1214; --bad-line:#6E2C2C; --warn:#FFC266; --warn-bg:#2B210E;
+  --radius:18px;
+  --font:"Segoe UI",Roboto,"Inter",system-ui,sans-serif;
+  --mono:ui-monospace,"Roboto Mono",Consolas,monospace;
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --bg:#F4F6FA; --panel:#FFFFFF; --panel2:#F0F3F8; --line:#DCE2EC; --line2:#C3CCDA;
+    --ink:#121722; --ink2:#323B4D; --muted:#5D677B;
+    --acc:#3D7A00; --acc-ink:#FFFFFF; --acc-bg:#EAF5DA; --acc-line:#A9D16E;
+    --ok:#0F7A49; --ok-bg:#E2F5EC; --bad:#B42318; --bad-bg:#FDECEA; --bad-line:#F1B5AE; --warn:#8A5300; --warn-bg:#FFF3DE;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B0E14; --panel:#131824; --panel2:#1A2131; --line:#263047; --line2:#3A4766;
+  --ink:#EEF2FA; --ink2:#C3CBDD; --muted:#98A2B8;
+  --acc:#B8F03C; --acc-ink:#162300; --acc-bg:#1C260C; --acc-line:#4F6B14;
+  --ok:#5BE3A0; --ok-bg:#0E2A20; --bad:#FF7A70; --bad-bg:#2C1214; --bad-line:#6E2C2C; --warn:#FFC266; --warn-bg:#2B210E;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);-webkit-text-size-adjust:100%}
+body{padding:16px 16px calc(24px + env(safe-area-inset-bottom))}
+.app{max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+h1,h2,h3,p{margin:0}
+h1{font-size:26px;line-height:1.2;font-weight:700;letter-spacing:-.01em}
+h2{font-size:20px;line-height:1.25;font-weight:650}
+h3{font-size:16px;font-weight:650}
+p{font-size:15px;line-height:1.5;color:var(--ink2)}
+small,.small{font-size:13px;color:var(--muted);line-height:1.45}
+.mono{font-family:var(--mono)}
+.kicker{font-family:var(--mono);font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--acc)}
+button,input,select{font:inherit;color:inherit}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+a{color:var(--acc)}
+
+/* barra superior */
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px}
+.brand{display:flex;align-items:center;gap:10px;font-weight:650;font-size:16px}
+.brand svg{flex:0 0 28px}
+.back{min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;border:1px solid var(--line);background:var(--panel);cursor:pointer;display:inline-flex;align-items:center;gap:6px;font-size:14px}
+
+/* bloques */
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;display:flex;flex-direction:column;gap:12px}
+.card.acc{border-color:var(--acc-line);background:var(--acc-bg)}
+.card.bad{border-color:var(--bad-line);background:var(--bad-bg)}
+.stack{display:flex;flex-direction:column;gap:12px}
+.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.btn{min-height:52px;padding:0 20px;border-radius:999px;border:1px solid var(--line2);background:var(--panel);font-size:16px;font-weight:600;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;color:var(--ink)}
+.btn.primary{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+.btn.danger{border-color:var(--bad-line);color:var(--bad)}
+.btn.block{width:100%}
+.btn.sm{min-height:44px;font-size:14px;padding:0 16px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.choice{width:100%;text-align:left;padding:18px;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel);cursor:pointer;display:flex;gap:14px;align-items:center}
+.choice .ico{flex:0 0 44px;height:44px;border-radius:14px;background:var(--panel2);display:flex;align-items:center;justify-content:center;color:var(--acc)}
+.choice b{display:block;font-size:17px;color:var(--ink)}
+.choice span{display:block;font-size:14px;color:var(--muted);margin-top:2px;line-height:1.4}
+
+/* progreso */
+.progress{display:flex;gap:6px}
+.progress i{flex:1;height:6px;border-radius:999px;background:var(--line)}
+.progress i.on{background:var(--acc)}
+
+/* lista de pasos */
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.step{border:1px solid var(--line);border-radius:16px;background:var(--panel);overflow:hidden}
+.step summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:14px 16px;min-height:56px}
+.step summary::-webkit-details-marker{display:none}
+.step .txt{flex:1;font-size:15px;font-weight:600}
+.step .body{padding:0 16px 16px;display:flex;flex-direction:column;gap:10px}
+.path{font-family:var(--mono);font-size:13px;line-height:1.5;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px;color:var(--ink2)}
+.check{flex:0 0 28px;height:28px;border-radius:999px;border:2px solid var(--line2);display:flex;align-items:center;justify-content:center}
+.check.on{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+
+/* pruebas */
+.test{display:flex;align-items:center;gap:12px;padding:14px 16px;border:1px solid var(--line);border-radius:16px;background:var(--panel);width:100%;text-align:left;cursor:pointer;min-height:64px}
+.test .t{flex:1;display:flex;flex-direction:column;gap:2px}
+.test .t b{font-size:15px}
+.test .t span{font-size:13px;color:var(--muted)}
+.pill{font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:999px;white-space:nowrap;border:1px solid var(--line2);color:var(--muted)}
+.pill.ok{background:var(--ok-bg);border-color:transparent;color:var(--ok)}
+.pill.bad{background:var(--bad-bg);border-color:transparent;color:var(--bad)}
+.pill.na{background:var(--warn-bg);border-color:transparent;color:var(--warn)}
+
+/* formulario */
+label.f{display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600}
+input.in,select.in{min-height:52px;padding:0 14px;border-radius:14px;border:1px solid var(--line2);background:var(--panel2);font-size:17px;width:100%}
+input.in.imei{font-family:var(--mono);letter-spacing:.08em}
+.hint{font-size:13px;font-weight:400;color:var(--muted)}
+.hint.bad{color:var(--bad)}
+.hint.ok{color:var(--ok)}
+.seg{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.seg button{min-height:52px;border-radius:14px;border:1px solid var(--line2);background:var(--panel2);font-size:14px;font-weight:600;cursor:pointer;padding:6px}
+.seg button[aria-pressed="true"]{background:var(--acc);border-color:var(--acc);color:var(--acc-ink)}
+
+/* certificado */
+.cert{border-radius:22px;border:1px solid var(--line2);background:var(--panel);overflow:hidden}
+.cert .head{padding:18px;background:var(--panel2);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.cert .head .model{font-size:22px;font-weight:700}
+.cert table{width:100%;border-collapse:collapse;font-size:14px}
+.cert td{padding:11px 18px;border-top:1px solid var(--line);vertical-align:top}
+.cert td:last-child{text-align:right}
+.cert tr:first-child td{border-top:none}
+.qr{background:#fff;border-radius:18px;padding:14px;display:flex;justify-content:center}
+.qr svg{width:100%;max-width:300px;height:auto;display:block}
+.verdict{display:flex;gap:12px;align-items:flex-start}
+.verdict .dot{flex:0 0 14px;height:14px;border-radius:999px;margin-top:5px}
+
+/* pantalla completa de pruebas */
+.full{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;flex-direction:column}
+.full .bar{position:absolute;left:0;right:0;bottom:0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));display:flex;gap:10px;justify-content:center;flex-wrap:wrap;background:linear-gradient(transparent,rgba(0,0,0,.55) 30%)}
+.full .bar.fija{position:static;background:var(--bg);border-top:1px solid var(--line)}
+.full .bar.fija .btn{min-height:44px;font-size:14px;padding:0 14px}
+.full .msg{position:absolute;top:calc(16px + env(safe-area-inset-top));left:16px;right:16px;text-align:center;font-size:15px;font-weight:600;padding:10px 14px;border-radius:14px;background:rgba(11,14,20,.78);color:#EEF2FA;pointer-events:none}
+.grid{flex:1;display:grid;touch-action:none;user-select:none;-webkit-user-select:none}
+.grid div{border:1px solid rgba(128,140,170,.25)}
+.grid div.hit{background:var(--acc)}
+.full video{flex:1;width:100%;height:100%;object-fit:cover;background:#000}
+.meter{height:16px;border-radius:999px;background:var(--line);overflow:hidden}
+.meter i{display:block;height:100%;width:0;background:var(--acc);transition:width .08s}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(480px,calc(100% - 32px));padding:14px 16px;border-radius:14px;background:var(--panel2);border:1px solid var(--line2);font-size:14px;z-index:30;text-align:center}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div id="overlay"></div>
+
+<script>
+/*QRLIB*/
+</script>
+<script>
+"use strict";
+/* ============================================================ datos */
+const LS = "traspaso-seguro-v1";
+/* Dirección pública donde publicaste la app (por ejemplo https://tu-usuario.github.io/traspaso/).
+   Si la dejas vacía, se usa la dirección desde la que se abrió. */
+const DIRECCION = "https://maryangeld2026-hash.github.io/Traspaso-seguro-propuesta/";
+/* En la app Android existe window.TraspasoNativo, que da datos que una web no puede leer (ciclos de batería). */
+const NATIVO = window.TraspasoNativo || null;
+function bateriaNativa(){ try{ return NATIVO ? JSON.parse(NATIVO.bateria()) : null; }catch(e){ return null; } }
+const MARCAS = {
+  samsung:{n:"Samsung",
+    cuentas:"Ajustes › Cuentas y copia de seguridad › Administrar cuentas › tu cuenta de Google › Eliminar cuenta",
+    fab:"Ajustes › Cuentas y copia de seguridad › Administrar cuentas › Cuenta Samsung › Cerrar sesión",
+    fabNombre:"Cuenta Samsung",
+    reset:"Ajustes › Administración general › Restablecer › Restablecer valores de fábrica"},
+  xiaomi:{n:"Xiaomi, Redmi o POCO",
+    cuentas:"Ajustes › Contraseñas y cuentas (o Cuentas y sincronización) › Google › tu cuenta › Eliminar cuenta",
+    fab:"Ajustes › Cuenta Xiaomi (arriba del todo) › Cerrar sesión. Esto también desactiva «Encontrar dispositivo».",
+    fabNombre:"Cuenta Xiaomi",
+    reset:"Ajustes › Sobre el teléfono › Restablecer datos de fábrica"},
+  motorola:{n:"Motorola o Android puro",
+    cuentas:"Ajustes › Contraseñas y cuentas › tu cuenta de Google › Quitar cuenta",
+    fab:"",
+    fabNombre:"",
+    reset:"Ajustes › Sistema › Opciones de restablecimiento › Borrar todos los datos (restablecer configuración de fábrica)"},
+  otra:{n:"Otra marca",
+    cuentas:"Abre Ajustes y busca «Cuentas». Entra en tu cuenta de Google y elige «Quitar» o «Eliminar cuenta».",
+    fab:"Si la marca tiene su propia cuenta (Huawei ID, Oppo, Realme, Honor…), ciérrala también desde Ajustes.",
+    fabNombre:"Cuenta de la marca",
+    reset:"Abre Ajustes y busca «Restablecer». Usa siempre el restablecimiento de fábrica desde Ajustes."}
+};
+const PRUEBAS = [
+  {id:"tactil", n:"Pantalla táctil", d:"Pinta toda la pantalla con el dedo"},
+  {id:"colores", n:"Colores y píxeles", d:"Busca manchas o puntos muertos"},
+  {id:"camara_t", n:"Cámara trasera", d:"Comprueba que enfoca y se ve nítida"},
+  {id:"camara_f", n:"Cámara frontal", d:"La de las selfies"},
+  {id:"micro", n:"Micrófono", d:"Graba 3 segundos y escúchalos"},
+  {id:"altavoz", n:"Altavoz", d:"Reproduce un tono"},
+  {id:"vibra", n:"Vibración", d:"El celular debe vibrar"},
+  {id:"sensor", n:"Sensor de movimiento", d:"Mueve el celular"},
+  {id:"carga", n:"Carga con el cable", d:"Conecta el cargador"},
+  {id:"manual", n:"Revisión a mano", d:"Botones, puerto, huella, Wi-Fi, llamadas"}
+];
+const MANUAL = ["Botones de volumen y de encendido","Puerto de carga sin holgura","Huella o desbloqueo facial","Se conecta a Wi-Fi","Hace y recibe una llamada con la SIM del comprador","Sin golpes, grietas ni pantalla abombada"];
+const PASOS_VENDER = [
+  {id:"copia", t:"Haz una copia de seguridad", b:m=>`<p>Guarda fotos, contactos y apps en tu cuenta antes de borrar nada.</p><div class="path">Ajustes › Google › Copia de seguridad › Crear copia ahora</div><p>Para WhatsApp:</p><div class="path">WhatsApp › Ajustes › Chats › Copia de seguridad › Guardar</div>`},
+  {id:"fab", t:m=>`Cierra la ${MARCAS[m].fabNombre||"cuenta de la marca"}`, solo:m=>!!MARCAS[m].fab, b:m=>`<p>Si queda abierta, el celular puede bloquearse aunque quites la de Google.</p><div class="path">${MARCAS[m].fab}</div>`},
+  {id:"google", t:"Quita tu cuenta de Google", b:m=>`<p>Es la que activa el bloqueo de fábrica (FRP). Si tienes varias cuentas de Google, quítalas todas.</p><div class="path">${MARCAS[m].cuentas}</div><small>Los nombres de los menús pueden cambiar un poco según la versión.</small>`},
+  {id:"extra", t:"Desvincula reloj, auriculares y bancos", b:m=>`<p>Quita el celular de tu reloj inteligente y cierra sesión en apps de bancos y billeteras (Nequi, Daviplata…).</p>`},
+  {id:"sim", t:"Saca tu SIM y la tarjeta de memoria", b:m=>`<p>Tu número y tus fotos de la tarjeta se quedan contigo.</p>`}
+];
+
+/* ============================================================ estado */
+const E = load() || {modo:null, marca:"samsung", pasos:{}, pruebas:{}, manual:{}, imei:"", imeiRes:"", modelo:"", inicio:Date.now()};
+function load(){ try{ return JSON.parse(localStorage.getItem(LS)); }catch(e){ return null; } }
+function save(){ try{ localStorage.setItem(LS, JSON.stringify(E)); }catch(e){} }
+function reiniciar(){ try{ localStorage.removeItem(LS); }catch(e){} location.hash="#/"; location.reload(); }
+
+/* ============================================================ utilidades */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const app = () => document.getElementById("app");
+function toast(t){ let el=$(".toast"); if(!el){ el=document.createElement("div"); el.className="toast"; el.setAttribute("role","status"); document.body.appendChild(el);} el.textContent=t; clearTimeout(toast.k); toast.k=setTimeout(()=>el.remove(),4000); }
+const ICON = {
+  logo:`<svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect x="6" y="2" width="16" height="24" rx="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M10 14l3 3 5-6" fill="none" stroke="var(--acc)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  sell:`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="2" width="12" height="20" rx="3"/><path d="M10 18h4"/></svg>`,
+  buy:`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16l-1.5 11a2 2 0 0 1-2 1.7H7.5a2 2 0 0 1-2-1.7z"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>`,
+  qr:`<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v7h-4M14 21v-3"/></svg>`,
+  chk:`<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg>`,
+  back:`<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>`
+};
+function barra(volver){
+  return `<div class="top"><div class="brand">${ICON.logo}<span>Traspaso seguro</span></div>${volver?`<button type="button" class="back" data-go="${volver}">${ICON.back}Atrás</button>`:""}</div>`;
+}
+function progreso(n){ return `<div class="progress" aria-label="Paso ${n} de 4">${[1,2,3,4].map(i=>`<i class="${i<=n?"on":""}"></i>`).join("")}</div>`; }
+function pill(r){
+  if(r==="ok") return `<span class="pill ok">BIEN</span>`;
+  if(r==="bad") return `<span class="pill bad">FALLA</span>`;
+  if(r==="na") return `<span class="pill na">SIN PROBAR</span>`;
+  return `<span class="pill">PENDIENTE</span>`;
+}
+function luhn(s){ if(!/^\d{15}$/.test(s)) return false; let sum=0; for(let i=0;i<15;i++){ let d=+s[14-i]; if(i%2){ d*=2; if(d>9) d-=9; } sum+=d; } return sum%10===0; }
+function fechaLarga(ts){ const d=new Date(ts); return d.toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})+", "+d.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"}); }
+/* El certificado se empaqueta en un formato corto para que el QR sea fácil de leer */
+const CLAVES_M = Object.keys(MARCAS), CODIGO = {ok:"o", bad:"x", na:"n"}, DECODIGO = {o:"ok", x:"bad", n:"na"};
+function empaquetar(c){ return [1, Math.round(c.t/1000), CLAVES_M.indexOf(c.mk), c.m, c.i, c.ir, c.a, PRUEBAS.map(p=>CODIGO[c.r[p.id]]||"n").join(""), c.b?c.b.l:-1, c.b&&c.b.c?1:0, c.b&&c.b.y>=0?c.b.y:-1]; }
+function desempaquetar(x){ if(!Array.isArray(x)) return x; const r={}; PRUEBAS.forEach((p,i)=>r[p.id]=DECODIGO[x[7][i]]||"na"); return {v:x[0], t:x[1]*1000, mk:CLAVES_M[x[2]]||"otra", m:x[3], i:x[4], ir:x[5], a:x[6], r, b:x[8]>=0?{l:x[8],c:!!x[9],y:x[10]??-1}:null}; }
+function b64e(o){ const b=new TextEncoder().encode(JSON.stringify(empaquetar(o))); let s=""; b.forEach(x=>s+=String.fromCharCode(x)); return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
+function b64d(t){ const s=atob(t.replace(/-/g,"+").replace(/_/g,"/")); return desempaquetar(JSON.parse(new TextDecoder().decode(Uint8Array.from(s,c=>c.charCodeAt(0))))); }
+
+/* intenta leer el modelo del celular (Chrome en Android) */
+async function detectarModelo(){
+  if(E.modelo) return;
+  try{
+    if(navigator.userAgentData && navigator.userAgentData.getHighEntropyValues){
+      const v = await navigator.userAgentData.getHighEntropyValues(["model"]);
+      if(v.model){ E.modelo=v.model; save(); return; }
+    }
+  }catch(e){}
+  const m = navigator.userAgent.match(/Android [\d.]+; ([^;)]+?)(?: Build|\))/);
+  if(m && m[1] && m[1] !== "K"){ E.modelo=m[1].trim(); save(); }
+}
+
+/* ============================================================ pantallas */
+const VISTAS = {
+  inicio(){
+    return `${barra()}
+    <div class="stack" style="gap:8px;margin-top:8px"><span class="kicker">Compra y venta de celulares usados</span>
+      <h1>Que el celular cambie de dueño sin quedar bloqueado</h1>
+      <p>Te guía para preparar, probar y entregar un celular usado, y le da al comprador un certificado en su propio teléfono.</p></div>
+    <button type="button" class="choice" data-go="#/vender">${`<span class="ico">${ICON.sell}</span>`}<span><b>Voy a vender un celular</b><span>Ábrelo en el celular que vas a vender</span></span></button>
+    <button type="button" class="choice" data-go="#/comprar">${`<span class="ico">${ICON.buy}</span>`}<span><b>Voy a comprar un celular</b><span>Qué revisar y cómo recibir el certificado</span></span></button>
+    <div class="card"><h3>Cómo funciona</h3>
+      <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;color:var(--ink2);font-size:15px;line-height:1.45">
+        <li>El vendedor prepara el celular en casa.</li>
+        <li>En el encuentro, ambos lo prueban y revisan el IMEI.</li>
+        <li>El comprador escanea un QR y recibe el certificado.</li>
+        <li>El vendedor lo restablece desde Ajustes. Si no pide la cuenta anterior, se paga.</li>
+      </ol></div>
+    <small>Todo se hace en el celular. Nada se envía a ningún servidor.</small>`;
+  },
+
+  comprar(){
+    return `${barra("#/")}
+    <div class="stack" style="gap:8px"><span class="kicker">Para el comprador</span><h1>No pagues hasta el final</h1>
+      <p>Pídele al vendedor que abra esta app en el celular que vende. Haréis las pruebas juntos y al final te mostrará un QR.</p></div>
+    <div class="card"><h3>Antes del encuentro</h3>
+      <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;color:var(--ink2);font-size:15px;line-height:1.45">
+        <li>Quedad en un lugar público con Wi-Fi o datos, de día.</li>
+        <li>Lleva tu SIM para probar llamadas y un cargador.</li>
+        <li>Pide la caja o la factura: el IMEI debe coincidir.</li>
+      </ul></div>
+    <div class="card acc"><h3>La regla de oro</h3>
+      <p>El vendedor restablece el celular desde Ajustes delante de ti. Tú lo configuras. <b>Si pide la cuenta de Google del dueño anterior, no pagues.</b> Ese bloqueo no se quita sin el vendedor.</p></div>
+    <div class="card"><h3>Para recibir el certificado</h3>
+      <p>Cuando el vendedor te muestre el QR, escanéalo con la cámara de tu celular. Se abrirá el certificado aquí mismo.</p>
+      ${"BarcodeDetector" in window ? `<button type="button" class="btn block" data-act="escanear">${ICON.qr} Escanear con esta app</button>` : ""}
+    </div>`;
+  },
+
+  vender(){
+    const m = E.marca;
+    const pasos = PASOS_VENDER.filter(p => !p.solo || p.solo(m));
+    const hechos = pasos.filter(p => E.pasos[p.id]).length;
+    const lista = pasos.map((p,i) => {
+      const on = !!E.pasos[p.id];
+      const t = typeof p.t === "function" ? p.t(m) : p.t;
+      return `<li><details class="step" ${!on && pasos.findIndex(x=>!E.pasos[x.id])===i ? "open" : ""}>
+        <summary><span class="check ${on?"on":""}">${on?ICON.chk:""}</span><span class="txt">${esc(t)}</span></summary>
+        <div class="body">${p.b(m)}<button type="button" class="btn sm ${on?"":"primary"}" data-paso="${p.id}">${on?"Marcar como pendiente":"Hecho"}</button></div>
+      </details></li>`;
+    }).join("");
+    return `${barra("#/")}${progreso(1)}
+    <div class="stack" style="gap:8px"><span class="kicker">Paso 1 de 4 · en casa</span><h1>Prepara tu celular</h1>
+      <p>Hazlo antes del encuentro. Así tus datos quedan a salvo y el comprador no se queda con un celular bloqueado.</p></div>
+    <label class="f">Marca del celular
+      <select class="in" id="marca">${Object.entries(MARCAS).map(([k,v])=>`<option value="${k}" ${k===m?"selected":""}>${esc(v.n)}</option>`).join("")}</select></label>
+    <ol class="steps">${lista}</ol>
+    <div class="card"><p><b>No restablezcas todavía.</b> Lo harás al final, delante del comprador. Así él comprueba que el celular queda libre.</p></div>
+    <button type="button" class="btn primary block" data-go="#/probar" ${hechos<pasos.length?"disabled":""}>Continuar a las pruebas</button>
+    ${hechos<pasos.length?`<small style="text-align:center">Te faltan ${pasos.length-hechos} ${pasos.length-hechos===1?"paso":"pasos"}.</small>`:""}`;
+  },
+
+  probar(){
+    const hechas = PRUEBAS.filter(p => E.pruebas[p.id]).length;
+    const lista = PRUEBAS.map(p => `<button type="button" class="test" data-prueba="${p.id}">
+      <span class="t"><b>${esc(p.n)}</b><span>${esc(p.d)}</span></span>${pill(E.pruebas[p.id])}</button>`).join("");
+    return `${barra("#/vender")}${progreso(2)}
+    <div class="stack" style="gap:8px"><span class="kicker">Paso 2 de 4 · con el comprador</span><h1>Probad el celular juntos</h1>
+      <p>Que el comprador mire cada prueba. Si alguna no se puede hacer, se marca como «sin probar» y queda así en el certificado.</p></div>
+    <div class="stack" style="gap:10px">${lista}</div>
+    <button type="button" class="btn primary block" data-go="#/imei" ${hechas<PRUEBAS.length?"disabled":""}>Continuar al IMEI</button>
+    ${hechas<PRUEBAS.length?`<small style="text-align:center">${hechas} de ${PRUEBAS.length} pruebas hechas.</small>`:""}`;
+  },
+
+  imei(){
+    const v = E.imei, valido = luhn(v);
+    let hint = `<span class="hint">Marca <b class="mono">*#06#</b> en el teclado del teléfono para verlo. Debe coincidir con la caja o la bandeja de la SIM.</span>`;
+    if(v.length===15) hint = valido ? `<span class="hint ok">El número tiene un formato de IMEI válido.</span>` : `<span class="hint bad">Este número no es un IMEI válido. Revísalo: un IMEI alterado se bloquea en Colombia en 48 horas.</span>`;
+    const res = [["no","No está reportado"],["si","Está reportado"],["nc","No pude consultar"]];
+    return `${barra("#/probar")}${progreso(3)}
+    <div class="stack" style="gap:8px"><span class="kicker">Paso 3 de 4 · con el comprador</span><h1>Revisad el IMEI</h1>
+      <p>El IMEI es el número de identidad del celular. Desde Android 10 ninguna app puede leerlo sola, así que hay que escribirlo.</p></div>
+    <label class="f">IMEI (15 dígitos)<input class="in imei" id="imei" inputmode="numeric" autocomplete="off" maxlength="15" value="${esc(v)}" placeholder="356938035643809">${hint}</label>
+    <div class="card"><h3>¿Está reportado como robado?</h3>
+      <p>Consúltalo en el portal oficial de IMEI de Colombia y marca el resultado.</p>
+      <a class="btn block" href="https://www.imeicolombia.com.co/" target="_blank" rel="noopener">Abrir IMEI Colombia</a>
+      <div class="seg" role="group" aria-label="Resultado de la consulta">${res.map(([k,t])=>`<button type="button" data-imeires="${k}" aria-pressed="${E.imeiRes===k}">${t}</button>`).join("")}</div>
+      ${E.imeiRes==="si"?`<div class="card bad"><p><b>No sigáis con la venta.</b> Un celular reportado se bloquea en todas las operadoras y comprarlo puede traerte problemas legales.</p></div>`:""}
+      ${E.imeiRes==="nc"?`<small>Puedes preguntar a tu operador con el número de IMEI. El certificado indicará que no se consultó.</small>`:""}
+    </div>
+    <label class="f">Modelo<input class="in" id="modelo" value="${esc(E.modelo)}" placeholder="Ej.: Galaxy A54"><span class="hint">${E.modelo?"Detectado automáticamente; corrígelo si no coincide.":"Escríbelo como aparece en Ajustes › Acerca del teléfono."}</span></label>
+    <button type="button" class="btn primary block" data-go="#/certificado" ${!valido||!E.imeiRes||E.imeiRes==="si"?"disabled":""}>Generar el certificado</button>`;
+  },
+
+  certificado(){
+    const c = {v:1, t:Date.now(), mk:E.marca, m:E.modelo||"", i:E.imei, ir:E.imeiRes, a:1,
+      r:Object.fromEntries(PRUEBAS.map(p=>[p.id, E.pruebas[p.id]||"na"])), b:E.bateria||null};
+    const url = (DIRECCION || location.href.split("#")[0]) + "#c=" + b64e(c);
+    let qrsvg = "";
+    try{ const q = qrcode(0, "L"); q.addData(url); q.make(); qrsvg = q.createSvgTag({cellSize:4, margin:4, scalable:true}); }
+    catch(e){ qrsvg = `<p style="color:#121722">No se pudo crear el QR.</p>`; }
+    return `${barra("#/imei")}${progreso(4)}
+    <div class="stack" style="gap:8px"><span class="kicker">Paso 4 de 4 · con el comprador</span><h1>Comprador: escanea este código</h1>
+      <p>Ábrelo con la cámara de tu celular. Recibirás el certificado y la guía de la prueba final.</p></div>
+    <div class="qr" role="img" aria-label="Código QR del certificado">${qrsvg}</div>
+    <details class="step"><summary><span class="txt">¿No puede escanearlo? Compartir el enlace</span></summary>
+      <div class="body"><div class="path" style="word-break:break-all">${esc(url)}</div>
+      ${navigator.share?`<button type="button" class="btn sm" data-act="compartir" data-url="${esc(url)}">Compartir</button>`:""}</div></details>
+    ${certHTML(c, false)}
+    <a class="btn block" href="#c=${b64e(c)}">Ver cómo lo recibe el comprador</a>
+    <div class="card acc"><h3>Ahora, la prueba final</h3>
+      <p>Cuando el comprador tenga el certificado, restablece el celular desde Ajustes, delante de él:</p>
+      <div class="path">${esc(MARCAS[E.marca].reset)}</div>
+      <p>Después el comprador lo configura. Si no pide tu cuenta, está libre.</p></div>
+    <button type="button" class="btn block danger" data-act="borrar">Borrar mis datos de esta app</button>`;
+  },
+
+  ver(c){
+    const r = c.r || {};
+    const fallas = PRUEBAS.filter(p => r[p.id]==="bad").map(p=>p.n);
+    const sin = PRUEBAS.filter(p => r[p.id]==="na").map(p=>p.n);
+    const marca = MARCAS[c.mk] || MARCAS.otra;
+    const final = E.finalComprador && E.finalComprador[c.i];
+    const pasosFinal = [
+      ["cuentas","El vendedor confirma que quitó todas sus cuentas"],
+      ["reset","El vendedor restablece desde Ajustes, delante de ti"],
+      ["config","Tú configuras el celular desde cero, con tu Wi-Fi"]
+    ];
+    const fe = (E.final && E.final[c.t]) || {};
+    let veredicto = "";
+    if(final==="libre") veredicto = `<div class="card acc"><div class="verdict"><span class="dot" style="background:var(--ok)"></span><div class="stack" style="gap:6px"><h2>Libre. Puedes pagar.</h2><p>El celular se configuró sin pedir la cuenta anterior.</p></div></div></div>`;
+    if(final==="bloqueado") veredicto = `<div class="card bad"><div class="verdict"><span class="dot" style="background:var(--bad)"></span><div class="stack" style="gap:6px"><h2>Bloqueado. No pagues.</h2><p>Pídele al vendedor que escriba su cuenta para desbloquearlo, la quite desde Ajustes y vuelva a restablecer. Si no puede, no compres.</p></div></div></div>`;
+    return `${barra("#/")}
+    <div class="stack" style="gap:8px"><span class="kicker">Certificado de traspaso</span><h1>${esc(c.m || "Celular")}</h1>
+      <p>Generado: ${esc(fechaLarga(c.t))}</p><small>Queda guardado en el enlace; guarda la pestaña o el enlace en tus notas.</small></div>
+    ${fallas.length?`<div class="card bad"><p><b>Tiene fallas:</b> ${esc(fallas.join(", "))}.</p></div>`:""}
+    ${certHTML(c, true)}
+    ${sin.length?`<small>Sin probar: ${esc(sin.join(", "))}. Pregúntale al vendedor por qué.</small>`:""}
+    <div class="card"><span class="kicker">Prueba final · antes de pagar</span><h2>Comprueba que no queda bloqueado</h2>
+      <ol class="steps">${pasosFinal.map(([k,t])=>`<li><button type="button" class="test" data-final="${k}" data-cert="${c.t}"><span class="check ${fe[k]?"on":""}">${fe[k]?ICON.chk:""}</span><span class="t"><b>${t}</b></span></button></li>`).join("")}</ol>
+      <div class="path">${esc(marca.reset)}</div>
+      <h3>Al configurarlo, ¿pidió la cuenta de Google del dueño anterior?</h3>
+      <div class="row"><button type="button" class="btn primary" style="flex:1" data-libre="libre" data-imei="${esc(c.i)}" ${pasosFinal.every(([k])=>fe[k])?"":"disabled"}>No, está libre</button>
+      <button type="button" class="btn danger" style="flex:1" data-libre="bloqueado" data-imei="${esc(c.i)}" ${pasosFinal.every(([k])=>fe[k])?"":"disabled"}>Sí, la pidió</button></div>
+    </div>
+    ${veredicto}
+    <small>Este certificado lo generó el celular del vendedor durante el encuentro. Su valor está en que viste las pruebas en persona; la prueba final es la única que no se puede falsificar.</small>`;
+  }
+};
+
+function certHTML(c, comprador){
+  const r = c.r || {};
+  const ok = PRUEBAS.filter(p=>r[p.id]==="ok").length;
+  const filas = PRUEBAS.map(p=>`<tr><td>${esc(p.n)}</td><td>${pill(r[p.id]||"na")}</td></tr>`).join("");
+  const imeiTxt = {no:"No reportado", si:"Reportado", nc:"Sin consultar"}[c.ir] || "—";
+  const imeiCls = {no:"ok", si:"bad", nc:"na"}[c.ir] || "";
+  const bat = c.b ? `${c.b.l} %${c.b.c?" · cargando":""}` : "No disponible";
+  const ciclos = c.b && c.b.y >= 0 ? `${c.b.y}` : "";
+  return `<div class="cert">
+    <div class="head"><span class="kicker">${comprador?"Datos del equipo":"Vista previa del certificado"}</span>
+      <span class="model">${esc(c.m||"Modelo sin indicar")}</span>
+      <span class="small">${esc((MARCAS[c.mk]||MARCAS.otra).n)} · IMEI <span class="mono">${esc(c.i)}</span></span></div>
+    <table><tbody>
+      <tr><td><b>IMEI en IMEI Colombia</b></td><td><span class="pill ${imeiCls}">${imeiTxt.toUpperCase()}</span></td></tr>
+      <tr><td><b>Cuentas cerradas</b></td><td><span class="pill ${c.a?"ok":""}">${c.a?"SEGÚN EL VENDEDOR":"NO"}</span></td></tr>
+      <tr><td><b>Batería al probar</b></td><td>${esc(bat)}</td></tr>
+      ${ciclos?`<tr><td><b>Ciclos de carga</b><br><span class="small">Leído por la app Android</span></td><td>${esc(ciclos)}</td></tr>`:""}
+      <tr><td><b>Pruebas superadas</b></td><td>${ok} de ${PRUEBAS.length}</td></tr>
+      ${filas}
+    </tbody></table></div>`;
+}
+
+/* ============================================================ pruebas a pantalla completa */
+function cerrarFull(){ const o=document.getElementById("overlay"); if(cerrarFull.stop) { try{cerrarFull.stop();}catch(e){} cerrarFull.stop=null; } o.innerHTML=""; render(); }
+function resultado(id, r){ E.pruebas[id]=r; save(); cerrarFull(); }
+function botonesResultado(id, preguntaOk="Funciona bien", preguntaBad="Tiene fallas"){
+  return `<button type="button" class="btn primary" data-res="${id}" data-r="ok">${preguntaOk}</button><button type="button" class="btn danger" data-res="${id}" data-r="bad">${preguntaBad}</button><button type="button" class="btn" data-res="${id}" data-r="na">Sin probar</button>`;
+}
+function full(html){ document.getElementById("overlay").innerHTML = `<div class="full" role="dialog" aria-modal="true">${html}</div>`; }
+
+const TEST = {
+  tactil(){
+    const cols=6, rows=11, total=cols*rows;
+    full(`<div class="grid" id="g" style="grid-template-columns:repeat(${cols},1fr);grid-template-rows:repeat(${rows},1fr)">${"<div></div>".repeat(total)}</div>
+      <div class="msg" id="gm">Pasa el dedo por todos los cuadros</div>
+      <div class="bar fija">${botonesResultado("tactil","Toda responde","Hay zonas sin respuesta")}</div>`);
+    const g=$("#g"); let n=0;
+    const marcar=(x,y)=>{ const el=document.elementFromPoint(x,y); if(el && el.parentNode===g && !el.classList.contains("hit")){ el.classList.add("hit"); n++; $("#gm").textContent = n>=total ? "¡Completo! Toda la pantalla responde." : `${n} de ${total} cuadros`; if(n>=total){ setTimeout(()=>resultado("tactil","ok"),700); } } };
+    g.addEventListener("pointerdown",e=>marcar(e.clientX,e.clientY));
+    g.addEventListener("pointermove",e=>{ if(e.buttons||e.pointerType==="touch") marcar(e.clientX,e.clientY); });
+    g.addEventListener("touchmove",e=>{ for(const t of e.touches) marcar(t.clientX,t.clientY); e.preventDefault(); },{passive:false});
+  },
+  colores(){
+    const cs=["#FF0000","#00FF00","#0000FF","#FFFFFF","#000000"]; let i=0;
+    full(`<div id="cl" style="flex:1;background:${cs[0]}"></div><div class="msg">Toca la pantalla para cambiar de color. Busca puntos o manchas.</div>
+      <div class="bar">${botonesResultado("colores","Sin manchas ni puntos","Hay manchas o puntos")}</div>`);
+    $("#cl").addEventListener("click",()=>{ i=(i+1)%cs.length; $("#cl").style.background=cs[i]; });
+  },
+  async camara_t(){ return camara("camara_t","environment"); },
+  async camara_f(){ return camara("camara_f","user"); },
+  async micro(){
+    full(`<div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:24px;max-width:520px;margin:0 auto;width:100%">
+      <h2>Micrófono</h2><p id="mm">Pulsa «Grabar» y habla durante 3 segundos.</p><div class="meter" aria-hidden="true"><i id="mv"></i></div>
+      <button type="button" class="btn primary block" id="grabar">Grabar 3 segundos</button><audio id="ma" controls class="sr"></audio></div>
+      <div class="bar">${botonesResultado("micro","Se oye bien","Se oye mal o nada")}</div>`);
+    $("#grabar").onclick = async () => {
+      let stream;
+      try{ stream = await navigator.mediaDevices.getUserMedia({audio:true}); }
+      catch(e){ $("#mm").textContent="No hay permiso para usar el micrófono. Revisa los permisos del navegador o márcalo como «sin probar»."; return; }
+      const ctx=new (window.AudioContext||window.webkitAudioContext)(); const an=ctx.createAnalyser(); ctx.createMediaStreamSource(stream).connect(an);
+      const buf=new Uint8Array(an.fftSize); let raf;
+      const tick=()=>{ an.getByteTimeDomainData(buf); let p=0; for(const v of buf) p=Math.max(p,Math.abs(v-128)); $("#mv").style.width=Math.min(100,p/64*100)+"%"; raf=requestAnimationFrame(tick); }; tick();
+      const rec=new MediaRecorder(stream); const partes=[]; rec.ondataavailable=e=>partes.push(e.data);
+      rec.onstop=()=>{ cancelAnimationFrame(raf); stream.getTracks().forEach(t=>t.stop()); ctx.close(); const a=$("#ma"); a.src=URL.createObjectURL(new Blob(partes)); a.classList.remove("sr"); a.style.width="100%"; a.play().catch(()=>{}); $("#mm").textContent="Escucha la grabación. ¿Se oye tu voz con claridad?"; $("#grabar").textContent="Grabar otra vez"; };
+      cerrarFull.stop=()=>{ try{ rec.state!=="inactive" && rec.stop(); }catch(e){} stream.getTracks().forEach(t=>t.stop()); };
+      $("#mm").textContent="Grabando… habla ahora."; rec.start(); setTimeout(()=>rec.state!=="inactive"&&rec.stop(),3000);
+    };
+  },
+  altavoz(){
+    full(`<div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:24px;max-width:520px;margin:0 auto;width:100%">
+      <h2>Altavoz</h2><p>Sube el volumen y pulsa el botón. Debe sonar un tono limpio, sin ruidos.</p>
+      <button type="button" class="btn primary block" id="tono">Reproducir tono</button></div>
+      <div class="bar">${botonesResultado("altavoz","Se escucha bien","Suena mal o nada")}</div>`);
+    $("#tono").onclick=()=>{ const ctx=new (window.AudioContext||window.webkitAudioContext)(); const o=ctx.createOscillator(), g=ctx.createGain(); o.connect(g); g.connect(ctx.destination); o.frequency.setValueAtTime(330,ctx.currentTime); o.frequency.exponentialRampToValueAtTime(1320,ctx.currentTime+1.6); g.gain.setValueAtTime(0.0001,ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.5,ctx.currentTime+0.1); g.gain.exponentialRampToValueAtTime(0.0001,ctx.currentTime+1.8); o.start(); o.stop(ctx.currentTime+1.9); o.onended=()=>ctx.close(); };
+  },
+  vibra(){
+    const puede = !!navigator.vibrate;
+    full(`<div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:24px;max-width:520px;margin:0 auto;width:100%">
+      <h2>Vibración</h2><p>${puede?"Pulsa el botón: el celular debe vibrar dos veces.":"Este navegador no permite probar la vibración. Márcala como «sin probar» o pruébala con una llamada."}</p>
+      ${puede?`<button type="button" class="btn primary block" id="vib">Vibrar</button>`:""}</div>
+      <div class="bar">${botonesResultado("vibra","Vibró","No vibró")}</div>`);
+    if(puede) $("#vib").onclick=()=>navigator.vibrate([400,200,400]);
+  },
+  sensor(){
+    full(`<div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:24px;max-width:520px;margin:0 auto;width:100%">
+      <h2>Sensor de movimiento</h2><p id="sm">Gira e inclina el celular durante unos segundos.</p><div class="meter" aria-hidden="true"><i id="sv"></i></div></div>
+      <div class="bar">${botonesResultado("sensor","Detectó el movimiento","No detecta nada")}</div>`);
+    let acum=0, ultimo=null, eventos=0;
+    const h=e=>{ const a=e.accelerationIncludingGravity; if(!a||a.x==null) return; eventos++; if(ultimo){ acum+=Math.abs(a.x-ultimo.x)+Math.abs(a.y-ultimo.y)+Math.abs(a.z-ultimo.z); } ultimo={x:a.x,y:a.y,z:a.z}; const p=Math.min(100,acum/60*100); $("#sv").style.width=p+"%"; if(p>=100){ window.removeEventListener("devicemotion",h); $("#sm").textContent="Movimiento detectado."; setTimeout(()=>resultado("sensor","ok"),600); } };
+    window.addEventListener("devicemotion",h); cerrarFull.stop=()=>window.removeEventListener("devicemotion",h);
+    setTimeout(()=>{ if(!eventos && $("#sm")) $("#sm").textContent="El navegador no entrega datos del sensor. Márcalo como «sin probar»."; },4000);
+  },
+  async carga(){
+    full(`<div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:18px;padding:24px;max-width:520px;margin:0 auto;width:100%">
+      <h2>Carga con el cable</h2><p id="cm">Comprobando la batería…</p><p class="mono" id="cn" style="font-size:28px;color:var(--ink)"></p></div>
+      <div class="bar">${botonesResultado("carga","Carga bien","No carga")}</div>`);
+    if(NATIVO){
+      const pintaN=()=>{ const n=bateriaNativa(); if(!n||!$("#cn")) return; E.bateria={l:n.nivel, c:n.cargando, y:n.ciclos}; save();
+        $("#cn").textContent=`${n.nivel} %${n.cargando?" · cargando":""}${n.ciclos>=0?` · ${n.ciclos} ciclos`:""}`;
+        if(n.cargando){ clearInterval(t); $("#cm").textContent="Está cargando."; setTimeout(()=>{ if($("#cn")) resultado("carga","ok"); },900); } else { $("#cm").textContent="Conecta el cargador del comprador o el tuyo."; } };
+      const t=setInterval(pintaN,1000); pintaN(); cerrarFull.stop=()=>clearInterval(t); return;
+    }
+    if(!navigator.getBattery){ $("#cm").textContent="Este navegador no informa de la batería. Conecta el cargador y comprueba el icono de carga."; return; }
+    const b = await navigator.getBattery();
+    const pinta=()=>{ E.bateria={l:Math.round(b.level*100), c:b.charging}; save(); $("#cn").textContent=`${Math.round(b.level*100)} %${b.charging?" · cargando":""}`; if(b.charging){ $("#cm").textContent="Está cargando."; setTimeout(()=>{ if($("#cn")) resultado("carga","ok"); },900); } else { $("#cm").textContent="Conecta el cargador del comprador o el tuyo."; } };
+    pinta(); b.addEventListener("chargingchange",pinta); b.addEventListener("levelchange",pinta);
+    cerrarFull.stop=()=>{ b.removeEventListener("chargingchange",pinta); b.removeEventListener("levelchange",pinta); };
+  },
+  manual(){
+    const lista=()=>MANUAL.map((t,i)=>`<li><button type="button" class="test" data-man="${i}"><span class="check ${E.manual[i]?"on":""}">${E.manual[i]?ICON.chk:""}</span><span class="t"><b>${esc(t)}</b></span></button></li>`).join("");
+    full(`<div style="flex:1;overflow:auto;padding:24px 16px 160px"><div style="max-width:520px;margin:0 auto;display:flex;flex-direction:column;gap:14px"><h2>Revisión a mano</h2><p>Marca lo que funciona. Lo que no marques cuenta como falla.</p><ol class="steps" id="ml">${lista()}</ol></div></div>
+      <div class="bar"><button type="button" class="btn primary" id="mok">Guardar revisión</button><button type="button" class="btn" data-res="manual" data-r="na">Sin probar</button></div>`);
+    $("#ml").addEventListener("click",e=>{ const b=e.target.closest("[data-man]"); if(!b) return; const i=+b.dataset.man; E.manual[i]=!E.manual[i]; save(); $("#ml").innerHTML=lista(); });
+    $("#mok").onclick=()=>resultado("manual", MANUAL.every((_,i)=>E.manual[i]) ? "ok" : "bad");
+  }
+};
+async function camara(id, facing){
+  full(`<video id="cv" playsinline autoplay muted></video><div class="msg" id="cmg">Abriendo la cámara…</div>
+    <div class="bar">${botonesResultado(id,"Se ve nítida","Se ve mal o no abre")}</div>`);
+  try{
+    const s = await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:facing}}, audio:false});
+    $("#cv").srcObject=s; cerrarFull.stop=()=>s.getTracks().forEach(t=>t.stop());
+    $("#cmg").textContent = facing==="user" ? "¿Te ves con claridad?" : "Enfoca algo con letra pequeña. ¿Se lee?";
+  }catch(e){
+    $("#cmg").textContent="No se pudo abrir la cámara. Revisa los permisos del navegador o márcala como «sin probar».";
+  }
+}
+
+/* ============================================================ escáner (si el navegador lo permite) */
+async function escanear(){
+  full(`<video id="cv" playsinline autoplay muted></video><div class="msg" id="cmg">Apunta al código QR del vendedor</div><div class="bar"><button type="button" class="btn" id="cx">Cancelar</button></div>`);
+  $("#cx").onclick=cerrarFull;
+  let s; try{ s=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}}}); }catch(e){ $("#cmg").textContent="No se pudo abrir la cámara. Usa la app de cámara de tu celular."; return; }
+  const v=$("#cv"); v.srcObject=s; let vivo=true; cerrarFull.stop=()=>{ vivo=false; s.getTracks().forEach(t=>t.stop()); };
+  const det=new BarcodeDetector({formats:["qr_code"]});
+  const bucle=async()=>{ if(!vivo) return; try{ const r=await det.detect(v); const u=r.find(x=>x.rawValue.includes("#c=")); if(u){ cerrarFull(); location.hash=u.rawValue.slice(u.rawValue.indexOf("#")); return; } }catch(e){} setTimeout(bucle,300); };
+  v.onloadeddata=bucle;
+}
+
+/* ============================================================ enrutado y eventos */
+function render(){
+  const h = location.hash || "#/";
+  let html;
+  if(h.startsWith("#c=")){
+    try{ html = VISTAS.ver(b64d(h.slice(3))); }
+    catch(e){ html = `${barra("#/")}<div class="card bad"><h2>Este certificado no se puede leer</h2><p>Pídele al vendedor que vuelva a mostrar el código QR.</p></div>`; }
+  } else {
+    const k = h.replace("#/","") || "inicio";
+    html = (VISTAS[k] || VISTAS.inicio)();
+  }
+  app().innerHTML = html;
+}
+window.addEventListener("hashchange", ()=>{ render(); window.scrollTo(0,0); });
+
+document.addEventListener("click", async e => {
+  const b = e.target.closest("button"); if(!b || b.disabled) return;
+  if(b.dataset.go){ location.hash = b.dataset.go; return; }
+  if(b.dataset.paso){ E.pasos[b.dataset.paso] = !E.pasos[b.dataset.paso]; save(); render(); return; }
+  if(b.dataset.prueba){ TEST[b.dataset.prueba](); return; }
+  if(b.dataset.res){ resultado(b.dataset.res, b.dataset.r); return; }
+  if(b.dataset.imeires){ E.imeiRes = b.dataset.imeires; save(); render(); return; }
+  if(b.dataset.final){ E.final = E.final || {}; const k=b.dataset.cert; E.final[k] = E.final[k] || {}; E.final[k][b.dataset.final] = !E.final[k][b.dataset.final]; save(); render(); return; }
+  if(b.dataset.libre){ E.finalComprador = E.finalComprador || {}; E.finalComprador[b.dataset.imei] = b.dataset.libre; save(); render(); return; }
+  if(b.dataset.act==="compartir"){ try{ await navigator.share({title:"Certificado de traspaso", url:b.dataset.url}); }catch(err){} return; }
+  if(b.dataset.act==="escanear"){ escanear(); return; }
+  if(b.dataset.act==="borrar"){ if(confirm("Se borrará el progreso guardado en esta app. El comprador conserva su certificado. ¿Continuar?")) reiniciar(); return; }
+});
+document.addEventListener("change", e => {
+  if(e.target.id==="marca"){ E.marca = e.target.value; save(); render(); }
+});
+document.addEventListener("input", e => {
+  if(e.target.id==="imei"){
+    const v = e.target.value.replace(/\D/g,"").slice(0,15);
+    E.imei = v; save();
+    if(v.length===15 || (v.length===14 && e.inputType && e.inputType.startsWith("delete"))){ const pos=v.length; render(); const i=$("#imei"); i.focus(); i.setSelectionRange(pos,pos); }
+    else e.target.value = v;
+  }
+  if(e.target.id==="modelo"){ E.modelo = e.target.value.slice(0,40); save(); }
+});
+document.addEventListener("keydown", e => { if(e.key==="Escape" && document.getElementById("overlay").innerHTML) cerrarFull(); });
+
+detectarModelo().then(()=>{ if((location.hash||"").startsWith("#/imei")) render(); });
+render();
+</script>
+</body>
+</html>

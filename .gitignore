@@ -1,0 +1,18 @@
+# Compilaciones
+web/dist/
+android/app/src/main/assets/index.html
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+salida/
+
+# Claves de firma: nunca se suben
+*.jks
+*.keystore
+android/keystore/
+
+# Sistema
+.DS_Store
+.idea/
+*.iml
