@@ -199,6 +199,7 @@ const PASOS_VENDER = [
 /* ============================================================ estado */
 const E = load() || {modo:null, marca:"samsung", pasos:{}, pruebas:{}, manual:{}, imei:"", imeiRes:"", modelo:"", inicio:Date.now()};
 function load(){ try{ return JSON.parse(localStorage.getItem(LS)); }catch(e){ return null; } }
+if(E.sis) E.sis.comprobando = false;
 function save(){ try{ localStorage.setItem(LS, JSON.stringify(E)); }catch(e){} }
 function reiniciar(){ try{ localStorage.removeItem(LS); }catch(e){} location.hash="#/"; location.reload(); }
 
@@ -218,7 +219,11 @@ const ICON = {
 function barra(volver){
   return `<div class="top"><div class="brand">${ICON.logo}<span>Traspaso seguro</span></div>${volver?`<button type="button" class="back" data-go="${volver}">${ICON.back}Atrás</button>`:""}</div>`;
 }
-function progreso(n){ return `<div class="progress" aria-label="Paso ${n} de 4">${[1,2,3,4].map(i=>`<i class="${i<=n?"on":""}"></i>`).join("")}</div>`; }
+/* En la app Android hay un paso más («Revisión del sistema»), así que los números cambian. */
+const TOTAL = () => NATIVO ? 5 : 4;
+const numPaso = n => (NATIVO && n >= 2) ? n + 1 : n;
+const pasoTxt = n => `Paso ${n} de ${TOTAL()}`;
+function progreso(n){ const t = TOTAL(); return `<div class="progress" aria-label="${pasoTxt(n)}">${Array.from({length:t},(_,i)=>`<i class="${i<n?"on":""}"></i>`).join("")}</div>`; }
 function pill(r){
   if(r==="ok") return `<span class="pill ok">BIEN</span>`;
   if(r==="bad") return `<span class="pill bad">FALLA</span>`;
@@ -229,8 +234,60 @@ function luhn(s){ if(!/^\d{15}$/.test(s)) return false; let sum=0; for(let i=0;i
 function fechaLarga(ts){ const d=new Date(ts); return d.toLocaleDateString("es-CO",{day:"numeric",month:"long",year:"numeric"})+", "+d.toLocaleTimeString("es-CO",{hour:"2-digit",minute:"2-digit"}); }
 /* El certificado se empaqueta en un formato corto para que el QR sea fácil de leer */
 const CLAVES_M = Object.keys(MARCAS), CODIGO = {ok:"o", bad:"x", na:"n"}, DECODIGO = {o:"ok", x:"bad", n:"na"};
-function empaquetar(c){ return [1, Math.round(c.t/1000), CLAVES_M.indexOf(c.mk), c.m, c.i, c.ir, c.a, PRUEBAS.map(p=>CODIGO[c.r[p.id]]||"n").join(""), c.b?c.b.l:-1, c.b&&c.b.c?1:0, c.b&&c.b.y>=0?c.b.y:-1]; }
-function desempaquetar(x){ if(!Array.isArray(x)) return x; const r={}; PRUEBAS.forEach((p,i)=>r[p.id]=DECODIGO[x[7][i]]||"na"); return {v:x[0], t:x[1]*1000, mk:CLAVES_M[x[2]]||"otra", m:x[3], i:x[4], ir:x[5], a:x[6], r, b:x[8]>=0?{l:x[8],c:!!x[9],y:x[10]??-1}:null}; }
+/* Posiciones: 0 versión · 1 fecha · 2 marca · 3 modelo · 4 IMEI · 5 consulta IMEI · 6 cuentas (vendedor) · 7 pruebas
+   · 8-10 batería (nivel, cargando, ciclos) · 11 integridad · 12 parche · 13 salud batería · 14 cuentas (cómo se comprobó) */
+function empaquetar(c){ return [1, Math.round(c.t/1000), CLAVES_M.indexOf(c.mk), c.m, c.i, c.ir, c.a, PRUEBAS.map(p=>CODIGO[c.r[p.id]]||"n").join(""), c.b?c.b.l:-1, c.b&&c.b.c?1:0, c.b&&c.b.y>=0?c.b.y:-1, c.g||"", c.p||"", c.s>=0?c.s:-1, c.k||0]; }
+function desempaquetar(x){ if(!Array.isArray(x)) return x; const r={}; PRUEBAS.forEach((p,i)=>r[p.id]=DECODIGO[x[7][i]]||"na"); return {v:x[0], t:x[1]*1000, mk:CLAVES_M[x[2]]||"otra", m:x[3], i:x[4], ir:x[5], a:x[6], r, b:x[8]>=0?{l:x[8],c:!!x[9],y:x[10]??-1}:null, g:x[11]||"", p:x[12]||"", s:x[13]??-1, k:x[14]||0}; }
+
+/* ---------------- firma digital del certificado (solo la genera la app Android) */
+const desB64 = s => Uint8Array.from(atob(s.replace(/-/g,"+").replace(/_/g,"/")), ch => ch.charCodeAt(0));
+/* Android firma en formato DER; el navegador espera r||s de 32 bytes cada uno. */
+function derARaw(der){
+  let i = 2; if(der[1] & 0x80) i = 2 + (der[1] & 0x7f);
+  const entero = () => { i++; const n = der[i++]; let v = der.slice(i, i + n); i += n; while(v.length > 32 && v[0] === 0) v = v.slice(1); const o = new Uint8Array(32); o.set(v, 32 - v.length); return o; };
+  const raw = new Uint8Array(64); raw.set(entero(), 0); raw.set(entero(), 32); return raw;
+}
+async function huellaDe(clave){ const h = new Uint8Array(await crypto.subtle.digest("SHA-256", clave)); const x = [...h.slice(0,4)].map(b=>b.toString(16).padStart(2,"0").toUpperCase()).join(""); return x.slice(0,4) + "-" + x.slice(4); }
+async function verificarFirma(datos, firma, clave){
+  if(!firma || !clave) return {estado:"sin"};
+  if(!(window.crypto && crypto.subtle)) return {estado:"nd"};
+  try{
+    const k = desB64(clave);
+    const pub = await crypto.subtle.importKey("spki", k, {name:"ECDSA", namedCurve:"P-256"}, false, ["verify"]);
+    const ok = await crypto.subtle.verify({name:"ECDSA", hash:"SHA-256"}, pub, derARaw(desB64(firma)), new TextEncoder().encode(datos));
+    return {estado: ok ? "ok" : "mal", huella: await huellaDe(k)};
+  }catch(e){ return {estado:"mal"}; }
+}
+
+/* ---------------- revisión del sistema (app Android) */
+function codigoInteg(i){
+  if(!i) return "";
+  if(i.error || !i.atestacion || i.nivel === "Software" || i.raizSoftware) return "s";
+  return (i.arranque === "verificado" && i.bloqueado && i.cadena && i.retoValido !== false) ? "v" : "m";
+}
+const fechaParche = p => p && p.length >= 6 ? `${p.slice(0,4)}-${p.slice(4,6)}` : "";
+function cuentasActuales(){ try{ return NATIVO ? JSON.parse(NATIVO.cuentasVisibles()) : []; }catch(e){ return []; } }
+function estadoCuentas(){
+  const s = E.sis || {};
+  const vis = cuentasActuales();
+  const lista = (s.cuentas || []).map(c => ({...c, sigue: vis.some(v => v.nombre === c.nombre && v.tipo === c.tipo)}));
+  const pendientes = lista.filter(c => c.sigue).length;
+  const ok = lista.length ? pendientes === 0 : !!s.ninguna;
+  return {lista, pendientes, ok, codigo: lista.length && pendientes === 0 ? 2 : (s.ninguna ? 1 : 0)};
+}
+const NOMBRE_TIPO = {"com.google":"Google", "com.osp.app.signin":"Samsung", "com.xiaomi":"Xiaomi"};
+window.alElegirCuenta = cuenta => {
+  E.sis = E.sis || {};
+  if(cuenta && cuenta.nombre){
+    E.sis.cuentas = E.sis.cuentas || [];
+    if(!E.sis.cuentas.some(c => c.nombre === cuenta.nombre && c.tipo === cuenta.tipo)) E.sis.cuentas.push(cuenta);
+    E.sis.ninguna = false; save(); render();
+    toast(`Detectada: ${cuenta.nombre}. Ahora quítala en Ajustes.`);
+  } else {
+    toast("No elegiste ninguna cuenta. Si no apareció ninguna en la lista, marca «No apareció ninguna».");
+  }
+};
+window.alVolver = () => { if((location.hash || "").startsWith("#/sistema")) render(); };
 function b64e(o){ const b=new TextEncoder().encode(JSON.stringify(empaquetar(o))); let s=""; b.forEach(x=>s+=String.fromCharCode(x)); return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,""); }
 function b64d(t){ const s=atob(t.replace(/-/g,"+").replace(/_/g,"/")); return desempaquetar(JSON.parse(new TextDecoder().decode(Uint8Array.from(s,c=>c.charCodeAt(0))))); }
 
@@ -297,22 +354,82 @@ const VISTAS = {
       </details></li>`;
     }).join("");
     return `${barra("#/")}${progreso(1)}
-    <div class="stack" style="gap:8px"><span class="kicker">Paso 1 de 4 · en casa</span><h1>Prepara tu celular</h1>
+    <div class="stack" style="gap:8px"><span class="kicker">${pasoTxt(1)} · en casa</span><h1>Prepara tu celular</h1>
       <p>Hazlo antes del encuentro. Así tus datos quedan a salvo y el comprador no se queda con un celular bloqueado.</p></div>
     <label class="f">Marca del celular
       <select class="in" id="marca">${Object.entries(MARCAS).map(([k,v])=>`<option value="${k}" ${k===m?"selected":""}>${esc(v.n)}</option>`).join("")}</select></label>
     <ol class="steps">${lista}</ol>
     <div class="card"><p><b>No restablezcas todavía.</b> Lo harás al final, delante del comprador. Así él comprueba que el celular queda libre.</p></div>
-    <button type="button" class="btn primary block" data-go="#/probar" ${hechos<pasos.length?"disabled":""}>Continuar a las pruebas</button>
+    <button type="button" class="btn primary block" data-go="${NATIVO?"#/sistema":"#/probar"}" ${hechos<pasos.length?"disabled":""}>${NATIVO?"Continuar a la revisión del sistema":"Continuar a las pruebas"}</button>
     ${hechos<pasos.length?`<small style="text-align:center">Te faltan ${pasos.length-hechos} ${pasos.length-hechos===1?"paso":"pasos"}.</small>`:""}`;
+  },
+
+  sistema(){
+    if(!NATIVO){ location.hash = "#/probar"; return ""; }
+    const s = E.sis = E.sis || {cuentas:[], ninguna:false, integ:null, bat:null};
+    const ic = codigoInteg(s.integ), i = s.integ || {};
+    const cu = estadoCuentas();
+    const b = s.bat;
+    const fila = (t, v, cls) => `<tr><td>${t}</td><td>${cls!==undefined?`<span class="pill ${cls}">${v}</span>`:esc(v)}</td></tr>`;
+
+    let integ = `<p>El chip de seguridad del celular certifica si el sistema es el original y si el bootloader está bloqueado. Un celular modificado puede ocultar fallas o un IMEI cambiado.</p>
+      <button type="button" class="btn primary block" data-act="integridad">Comprobar integridad</button>`;
+    if(s.comprobando) integ = `<p>Comprobando con el chip de seguridad… puede tardar unos segundos.</p>`;
+    else if(s.integ){
+      const vered = {v:["ok","Sistema original y bootloader bloqueado"], m:["bad","El sistema está modificado o el bootloader desbloqueado"], s:["na","Este celular no permite comprobarlo por hardware"]}[ic];
+      integ = `<div class="verdict"><span class="dot" style="background:var(--${vered[0]==="ok"?"ok":vered[0]==="bad"?"bad":"warn"})"></span><b>${vered[1]}</b></div>
+        <div class="cert"><table><tbody>
+          ${i.arranque?fila("Arranque", i.arranque.toUpperCase(), i.arranque==="verificado"?"ok":"bad"):""}
+          ${i.bloqueado!==undefined?fila("Bootloader", i.bloqueado?"BLOQUEADO":"DESBLOQUEADO", i.bloqueado?"ok":"bad"):""}
+          ${i.nivel?fila("Seguridad de hardware", i.nivel):""}
+          ${i.parche?fila("Parche de seguridad", fechaParche(i.parche)):""}
+          ${i.modelo?fila("Modelo certificado", `${i.marca?i.marca+" ":""}${i.modelo}`):""}
+          ${i.huella?fila("Huella del equipo", i.huella):""}
+          ${i.error?fila("Detalle", i.error):""}
+        </tbody></table></div>
+        <button type="button" class="btn sm" data-act="integridad">Comprobar otra vez</button>`;
+    }
+
+    const lista = cu.lista.map(c => `<tr><td>${esc(NOMBRE_TIPO[c.tipo]||c.tipo)}<br><span class="small mono">${esc(c.nombre)}</span></td><td><span class="pill ${c.sigue?"bad":"ok"}">${c.sigue?"AÚN EN EL CELULAR":"QUITADA"}</span></td></tr>`).join("");
+    const cuentas = `<p>Toca «Detectar cuentas» y elige cada cuenta que aparezca. Así la app puede comprobar sola que ya no está cuando la quites en Ajustes.</p>
+      ${lista?`<div class="cert"><table><tbody>${lista}</tbody></table></div>`:""}
+      <div class="row"><button type="button" class="btn sm primary" data-act="elegir-cuenta">Detectar cuentas</button>
+      <button type="button" class="btn sm" data-act="ajustes-cuentas">Abrir cuentas en Ajustes</button></div>
+      ${cu.lista.length?"":`<button type="button" class="btn sm" data-act="ninguna-cuenta" aria-pressed="${!!s.ninguna}">${s.ninguna?"✓ No apareció ninguna cuenta":"No apareció ninguna cuenta"}</button>
+      <small>Si al detectar el celular te pide añadir una cuenta, es que no queda ninguna de Google, Samsung ni Xiaomi: vuelve atrás y marca «No apareció ninguna».</small>`}
+      ${cu.pendientes?`<small style="color:var(--bad)">Quita ${cu.pendientes===1?"la cuenta marcada":"las cuentas marcadas"} en Ajustes y vuelve a esta pantalla.</small>`:""}`;
+
+    let bat = `<p>Mide la batería con los datos de Android: ciclos de carga y capacidad actual frente a la de fábrica.</p><button type="button" class="btn primary block" data-act="medir-bateria">Medir batería</button>`;
+    if(b){
+      bat = `<div class="cert"><table><tbody>
+        ${fila("Estado según Android", (b.estado||"desconocido").toUpperCase(), b.estado==="buena"?"ok":b.estado==="desconocido"?"":"bad")}
+        ${fila("Carga actual", b.nivel>=0?`${b.nivel} %${b.cargando?" · cargando":""}`:"—")}
+        ${fila("Ciclos de carga", b.ciclos>=0?String(b.ciclos):"No disponible (requiere Android 14)")}
+        ${fila("Capacidad actual", b.capacidad>0?`${b.capacidad} mAh (aprox.)`:"No disponible")}
+        ${fila("Capacidad de fábrica", b.diseno>0?`${b.diseno} mAh`:"No disponible")}
+        ${b.salud>=0?fila("Salud estimada", `${b.salud} %`, b.salud>=80?"ok":b.salud>=65?"na":"bad"):""}
+      </tbody></table></div>
+      <small>La capacidad se estima con la carga actual: es más precisa con la batería por encima del 50 %. ${b.nivel>=0&&b.nivel<15?"Ahora está demasiado baja para estimarla.":""}</small>
+      <button type="button" class="btn sm" data-act="medir-bateria">Medir otra vez</button>`;
+    }
+
+    const listo = s.integ && cu.ok && b;
+    return `${barra("#/vender")}${progreso(2)}
+    <div class="stack" style="gap:8px"><span class="kicker">${pasoTxt(2)} · con el comprador</span><h1>Revisión del sistema</h1>
+      <p>Lo que solo el propio celular puede saber. Hacedlo juntos: el comprador debe ver cada resultado en esta pantalla.</p></div>
+    <div class="card"><h3>1 · Integridad del equipo</h3>${integ}</div>
+    <div class="card"><h3>2 · Cuentas que bloquean el celular</h3>${cuentas}</div>
+    <div class="card"><h3>3 · Salud de la batería</h3>${bat}</div>
+    <button type="button" class="btn primary block" data-go="#/probar" ${listo?"":"disabled"}>Continuar a las pruebas</button>
+    ${listo?"":`<small style="text-align:center">Completa las tres revisiones para continuar.</small>`}`;
   },
 
   probar(){
     const hechas = PRUEBAS.filter(p => E.pruebas[p.id]).length;
     const lista = PRUEBAS.map(p => `<button type="button" class="test" data-prueba="${p.id}">
       <span class="t"><b>${esc(p.n)}</b><span>${esc(p.d)}</span></span>${pill(E.pruebas[p.id])}</button>`).join("");
-    return `${barra("#/vender")}${progreso(2)}
-    <div class="stack" style="gap:8px"><span class="kicker">Paso 2 de 4 · con el comprador</span><h1>Probad el celular juntos</h1>
+    return `${barra(NATIVO?"#/sistema":"#/vender")}${progreso(numPaso(2))}
+    <div class="stack" style="gap:8px"><span class="kicker">${pasoTxt(numPaso(2))} · con el comprador</span><h1>Probad el celular juntos</h1>
       <p>Que el comprador mire cada prueba. Si alguna no se puede hacer, se marca como «sin probar» y queda así en el certificado.</p></div>
     <div class="stack" style="gap:10px">${lista}</div>
     <button type="button" class="btn primary block" data-go="#/imei" ${hechas<PRUEBAS.length?"disabled":""}>Continuar al IMEI</button>
@@ -324,8 +441,8 @@ const VISTAS = {
     let hint = `<span class="hint">Marca <b class="mono">*#06#</b> en el teclado del teléfono para verlo. Debe coincidir con la caja o la bandeja de la SIM.</span>`;
     if(v.length===15) hint = valido ? `<span class="hint ok">El número tiene un formato de IMEI válido.</span>` : `<span class="hint bad">Este número no es un IMEI válido. Revísalo: un IMEI alterado se bloquea en Colombia en 48 horas.</span>`;
     const res = [["no","No está reportado"],["si","Está reportado"],["nc","No pude consultar"]];
-    return `${barra("#/probar")}${progreso(3)}
-    <div class="stack" style="gap:8px"><span class="kicker">Paso 3 de 4 · con el comprador</span><h1>Revisad el IMEI</h1>
+    return `${barra("#/probar")}${progreso(numPaso(3))}
+    <div class="stack" style="gap:8px"><span class="kicker">${pasoTxt(numPaso(3))} · con el comprador</span><h1>Revisad el IMEI</h1>
       <p>El IMEI es el número de identidad del celular. Desde Android 10 ninguna app puede leerlo sola, así que hay que escribirlo.</p></div>
     <label class="f">IMEI (15 dígitos)<input class="in imei" id="imei" inputmode="numeric" autocomplete="off" maxlength="15" value="${esc(v)}" placeholder="356938035643809">${hint}</label>
     <div class="card"><h3>¿Está reportado como robado?</h3>
@@ -340,21 +457,32 @@ const VISTAS = {
   },
 
   certificado(){
+    const s = (NATIVO && E.sis) || {};
+    let bat = E.bateria || null;
+    if(s.bat){ bat = {l: bat ? bat.l : s.bat.nivel, c: bat ? bat.c : s.bat.cargando, y: s.bat.ciclos}; }
     const c = {v:1, t:Date.now(), mk:E.marca, m:E.modelo||"", i:E.imei, ir:E.imeiRes, a:1,
-      r:Object.fromEntries(PRUEBAS.map(p=>[p.id, E.pruebas[p.id]||"na"])), b:E.bateria||null};
-    const url = (DIRECCION || location.href.split("#")[0]) + "#c=" + b64e(c);
+      r:Object.fromEntries(PRUEBAS.map(p=>[p.id, E.pruebas[p.id]||"na"])), b:bat,
+      g:codigoInteg(s.integ), p:(s.integ&&s.integ.parche)||"", s:s.bat&&s.bat.salud>=0?s.bat.salud:-1, k:NATIVO?estadoCuentas().codigo:0};
+    let hash = b64e(c), firma = null;
+    if(NATIVO){
+      try{ firma = JSON.parse(NATIVO.firmar(hash)); }catch(e){ firma = null; }
+      if(firma && firma.firma && firma.clave) hash += "." + firma.firma + "." + firma.clave;
+    }
+    const url = (DIRECCION || location.href.split("#")[0]) + "#c=" + hash;
     let qrsvg = "";
     try{ const q = qrcode(0, "L"); q.addData(url); q.make(); qrsvg = q.createSvgTag({cellSize:4, margin:4, scalable:true}); }
     catch(e){ qrsvg = `<p style="color:#121722">No se pudo crear el QR.</p>`; }
-    return `${barra("#/imei")}${progreso(4)}
-    <div class="stack" style="gap:8px"><span class="kicker">Paso 4 de 4 · con el comprador</span><h1>Comprador: escanea este código</h1>
+    return `${barra("#/imei")}${progreso(numPaso(4))}
+    <div class="stack" style="gap:8px"><span class="kicker">${pasoTxt(numPaso(4))} · con el comprador</span><h1>Comprador: escanea este código</h1>
       <p>Ábrelo con la cámara de tu celular. Recibirás el certificado y la guía de la prueba final.</p></div>
     <div class="qr" role="img" aria-label="Código QR del certificado">${qrsvg}</div>
+    ${firma && firma.huella ? `<div class="card acc"><span class="kicker">Huella de este celular</span><p class="mono" style="font-size:30px;font-weight:700;color:var(--ink);letter-spacing:.06em">${esc(firma.huella)}</p>
+      <p>El certificado está firmado con una clave guardada en el chip de seguridad de este celular. Comprador: comprueba que tu certificado muestra esta misma huella.</p></div>` : ""}
     <details class="step"><summary><span class="txt">¿No puede escanearlo? Compartir el enlace</span></summary>
       <div class="body"><div class="path" style="word-break:break-all">${esc(url)}</div>
       ${navigator.share?`<button type="button" class="btn sm" data-act="compartir" data-url="${esc(url)}">Compartir</button>`:""}</div></details>
     ${certHTML(c, false)}
-    <a class="btn block" href="#c=${b64e(c)}">Ver cómo lo recibe el comprador</a>
+    <a class="btn block" href="#c=${hash}">Ver cómo lo recibe el comprador</a>
     <div class="card acc"><h3>Ahora, la prueba final</h3>
       <p>Cuando el comprador tenga el certificado, restablece el celular desde Ajustes, delante de él:</p>
       <div class="path">${esc(MARCAS[E.marca].reset)}</div>
@@ -380,6 +508,10 @@ const VISTAS = {
     return `${barra("#/")}
     <div class="stack" style="gap:8px"><span class="kicker">Certificado de traspaso</span><h1>${esc(c.m || "Celular")}</h1>
       <p>Generado: ${esc(fechaLarga(c.t))}</p><small>Queda guardado en el enlace; guarda la pestaña o el enlace en tus notas.</small></div>
+    ${c._firma ? `<div class="card" id="firma-card"><div class="row"><span class="pill" id="firma-pill">COMPROBANDO…</span><b>Firma digital</b></div>
+      <p id="firma-txt">Comprobando que el certificado no se ha modificado…</p></div>`
+      : `<small>Generado con la versión web: no lleva firma digital ni revisión del sistema.</small>`}
+    ${c.g==="m"?`<div class="card bad"><p><b>Sistema modificado.</b> El chip de seguridad indica que el sistema no es el original o que el bootloader está desbloqueado. Un celular así puede ocultar fallas o un IMEI cambiado.</p></div>`:""}
     ${fallas.length?`<div class="card bad"><p><b>Tiene fallas:</b> ${esc(fallas.join(", "))}.</p></div>`:""}
     ${certHTML(c, true)}
     ${sin.length?`<small>Sin probar: ${esc(sin.join(", "))}. Pregúntale al vendedor por qué.</small>`:""}
@@ -409,8 +541,11 @@ function certHTML(c, comprador){
       <span class="small">${esc((MARCAS[c.mk]||MARCAS.otra).n)} · IMEI <span class="mono">${esc(c.i)}</span></span></div>
     <table><tbody>
       <tr><td><b>IMEI en IMEI Colombia</b></td><td><span class="pill ${imeiCls}">${imeiTxt.toUpperCase()}</span></td></tr>
-      <tr><td><b>Cuentas cerradas</b></td><td><span class="pill ${c.a?"ok":""}">${c.a?"SEGÚN EL VENDEDOR":"NO"}</span></td></tr>
+      ${c.g?`<tr><td><b>Sistema y bootloader</b><br><span class="small">Comprobado por el chip de seguridad</span></td><td><span class="pill ${c.g==="v"?"ok":c.g==="m"?"bad":"na"}">${c.g==="v"?"ORIGINAL":c.g==="m"?"MODIFICADO":"NO COMPROBABLE"}</span></td></tr>`:""}
+      ${c.p?`<tr><td><b>Parche de seguridad</b></td><td>${esc(fechaParche(c.p))}</td></tr>`:""}
+      <tr><td><b>Cuentas cerradas</b>${c.k===2?`<br><span class="small">La app vio cada cuenta y comprobó que ya no está</span>`:""}</td><td><span class="pill ${c.k===2?"ok":c.k===1?"na":c.a?"ok":""}">${c.k===2?"VERIFICADO POR LA APP":c.k===1?"NINGUNA DETECTADA":c.a?"SEGÚN EL VENDEDOR":"NO"}</span></td></tr>
       <tr><td><b>Batería al probar</b></td><td>${esc(bat)}</td></tr>
+      ${c.s>=0?`<tr><td><b>Salud de la batería</b><br><span class="small">Estimada por la app Android</span></td><td><span class="pill ${c.s>=80?"ok":c.s>=65?"na":"bad"}">${c.s} %</span></td></tr>`:""}
       ${ciclos?`<tr><td><b>Ciclos de carga</b><br><span class="small">Leído por la app Android</span></td><td>${esc(ciclos)}</td></tr>`:""}
       <tr><td><b>Pruebas superadas</b></td><td>${ok} de ${PRUEBAS.length}</td></tr>
       ${filas}
@@ -539,7 +674,17 @@ function render(){
   const h = location.hash || "#/";
   let html;
   if(h.startsWith("#c=")){
-    try{ html = VISTAS.ver(b64d(h.slice(3))); }
+    try{
+      const [datos, firma, clave] = h.slice(3).split(".");
+      const c = b64d(datos); c._datos = datos; c._firma = firma; c._clave = clave;
+      html = VISTAS.ver(c);
+      if(firma){ verificarFirma(datos, firma, clave).then(r => {
+        const p = document.getElementById("firma-pill"), t = document.getElementById("firma-txt"); if(!p || !t) return;
+        if(r.estado === "ok"){ p.className = "pill ok"; p.textContent = "VÁLIDA"; t.innerHTML = `El certificado no se ha modificado desde que se generó. Huella del celular: <b class="mono" style="font-size:18px;color:var(--ink)">${esc(r.huella)}</b>. Debe coincidir con la que muestra el celular del vendedor.`; }
+        else if(r.estado === "nd"){ p.className = "pill na"; p.textContent = "SIN COMPROBAR"; t.textContent = "Este navegador no puede comprobar firmas. Ábrelo en Chrome."; }
+        else { p.className = "pill bad"; p.textContent = "NO VÁLIDA"; t.textContent = "El certificado fue modificado o está incompleto. No te fíes de sus datos: pídele al vendedor que lo genere otra vez delante de ti."; document.getElementById("firma-card").classList.add("bad"); }
+      }); }
+    }
     catch(e){ html = `${barra("#/")}<div class="card bad"><h2>Este certificado no se puede leer</h2><p>Pídele al vendedor que vuelva a mostrar el código QR.</p></div>`; }
   } else {
     const k = h.replace("#/","") || "inicio";
@@ -560,6 +705,16 @@ document.addEventListener("click", async e => {
   if(b.dataset.libre){ E.finalComprador = E.finalComprador || {}; E.finalComprador[b.dataset.imei] = b.dataset.libre; save(); render(); return; }
   if(b.dataset.act==="compartir"){ try{ await navigator.share({title:"Certificado de traspaso", url:b.dataset.url}); }catch(err){} return; }
   if(b.dataset.act==="escanear"){ escanear(); return; }
+  if(NATIVO && b.dataset.act==="integridad"){
+    E.sis.comprobando = true; render();
+    const reto = Array.from(crypto.getRandomValues(new Uint8Array(16)), x => x.toString(16).padStart(2,"0")).join("");
+    setTimeout(() => { let r; try{ r = JSON.parse(NATIVO.integridad(reto)); }catch(err){ r = {error:String(err)}; } E.sis.integ = r; E.sis.comprobando = false; save(); render(); }, 60);
+    return;
+  }
+  if(NATIVO && b.dataset.act==="elegir-cuenta"){ NATIVO.elegirCuenta(); return; }
+  if(NATIVO && b.dataset.act==="ajustes-cuentas"){ NATIVO.abrirAjustes("cuentas"); return; }
+  if(b.dataset.act==="ninguna-cuenta"){ E.sis.ninguna = !E.sis.ninguna; save(); render(); return; }
+  if(NATIVO && b.dataset.act==="medir-bateria"){ try{ E.sis.bat = JSON.parse(NATIVO.bateria()); }catch(err){ E.sis.bat = {estado:"desconocido", nivel:-1, ciclos:-1, capacidad:-1, diseno:-1, salud:-1}; } save(); render(); return; }
   if(b.dataset.act==="borrar"){ if(confirm("Se borrará el progreso guardado en esta app. El comprador conserva su certificado. ¿Continuar?")) reiniciar(); return; }
 });
 document.addEventListener("change", e => {

@@ -1,17 +1,17 @@
 package co.traspasoseguro.app;
 
 import android.Manifest;
+import android.accounts.AccountManager;
 import android.app.Activity;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.net.Uri;
-import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.WindowInsets;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
@@ -23,6 +23,8 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
 import androidx.webkit.WebViewAssetLoader;
+
+import org.json.JSONObject;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -37,6 +39,7 @@ public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
     private static final String INICIO = "https://" + HOST + "/assets/index.html";
     private static final int PEDIR_PERMISOS = 7;
+    private static final int ELEGIR_CUENTA = 8;
 
     private WebView web;
     private PermissionRequest pendiente;
@@ -176,23 +179,83 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    /** Ejecuta una función de la página (siempre desde el hilo principal). */
+    private void avisarPagina(final String funcion, final String json) {
+        runOnUiThread(() -> {
+            if (web != null) {
+                web.evaluateJavascript("window." + funcion + " && window." + funcion + "(" + json + ")", null);
+            }
+        });
+    }
+
+    @Override
+    protected void onActivityResult(int codigo, int resultado, Intent datos) {
+        super.onActivityResult(codigo, resultado, datos);
+        if (codigo != ELEGIR_CUENTA) return;
+        if (resultado == RESULT_OK && datos != null) {
+            String nombre = datos.getStringExtra(AccountManager.KEY_ACCOUNT_NAME);
+            String tipo = datos.getStringExtra(AccountManager.KEY_ACCOUNT_TYPE);
+            avisarPagina("alElegirCuenta", "{\"nombre\":" + JSONObject.quote(nombre == null ? "" : nombre)
+                    + ",\"tipo\":" + JSONObject.quote(tipo == null ? "" : tipo) + "}");
+        } else {
+            avisarPagina("alElegirCuenta", "null");
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Al volver de Ajustes, la página vuelve a comprobar las cuentas.
+        avisarPagina("alVolver", "null");
+    }
+
     /** Datos que la página puede pedir a Android a través de window.TraspasoNativo. */
     private class Puente {
         @JavascriptInterface
         public String bateria() {
-            Intent i = registerReceiver(null, new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
-            if (i == null) return "{\"nivel\":-1,\"cargando\":false,\"ciclos\":-1}";
-            int nivel = i.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-            int escala = i.getIntExtra(BatteryManager.EXTRA_SCALE, 100);
-            int estado = i.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
-            boolean cargando = estado == BatteryManager.BATTERY_STATUS_CHARGING
-                    || estado == BatteryManager.BATTERY_STATUS_FULL;
-            int ciclos = -1;
-            if (Build.VERSION.SDK_INT >= 34) {
-                ciclos = i.getIntExtra(BatteryManager.EXTRA_CYCLE_COUNT, -1);
-            }
-            int porcentaje = (nivel >= 0 && escala > 0) ? Math.round(nivel * 100f / escala) : -1;
-            return "{\"nivel\":" + porcentaje + ",\"cargando\":" + cargando + ",\"ciclos\":" + ciclos + "}";
+            return Sistema.bateria(MainActivity.this);
+        }
+
+        @JavascriptInterface
+        public String integridad(String reto) {
+            return Sistema.integridad(reto == null ? "" : reto);
+        }
+
+        @JavascriptInterface
+        public String firmar(String datos) {
+            return Sistema.firmar(datos == null ? "" : datos);
+        }
+
+        @JavascriptInterface
+        public String cuentasVisibles() {
+            return Sistema.cuentasVisibles(MainActivity.this);
+        }
+
+        /** Abre el selector de cuentas del sistema: muestra las de Google, Samsung y Xiaomi que haya. */
+        @JavascriptInterface
+        public void elegirCuenta() {
+            runOnUiThread(() -> {
+                try {
+                    Intent i = AccountManager.newChooseAccountIntent(null, null, Sistema.TIPOS_CUENTA,
+                            null, null, null, null);
+                    startActivityForResult(i, ELEGIR_CUENTA);
+                } catch (Exception e) {
+                    avisarPagina("alElegirCuenta", "null");
+                }
+            });
+        }
+
+        /** Abre una pantalla de Ajustes: "cuentas" o "general". */
+        @JavascriptInterface
+        public void abrirAjustes(String cual) {
+            runOnUiThread(() -> {
+                String accion = "cuentas".equals(cual) ? Settings.ACTION_SYNC_SETTINGS : Settings.ACTION_SETTINGS;
+                try {
+                    startActivity(new Intent(accion));
+                } catch (ActivityNotFoundException e) {
+                    startActivity(new Intent(Settings.ACTION_SETTINGS));
+                }
+            });
         }
 
         @JavascriptInterface
