@@ -16,10 +16,18 @@ Guía a vendedor y comprador de un celular usado para que el teléfono cambie de
 
 Nada se envía a ningún servidor: el certificado viaja dentro del propio QR.
 
-### Qué añade la app Android frente a la web
+### Qué añade la app Android frente a la web: «Revisión del sistema»
 
-- Pide los permisos de cámara y micrófono como cualquier app.
-- Lee los **ciclos de carga de la batería** en Android 14 o superior, algo que una página web no puede hacer.
+Un paso más (5 en lugar de 4) con lo que solo el propio celular puede saber:
+
+| Revisión | Cómo lo hace |
+|---|---|
+| **Integridad del equipo** | Crea una clave en el chip de seguridad y lee su certificado de atestación: el hardware declara si el arranque está verificado, si el bootloader está bloqueado, el nivel de seguridad (TEE o StrongBox), el parche y el modelo. |
+| **Cuentas que bloquean el celular** | El vendedor muestra sus cuentas de Google, Samsung y Xiaomi con el selector del sistema; la app comprueba sola que ya no están después de quitarlas en Ajustes. |
+| **Salud de la batería** | Estado según Android, ciclos de carga (Android 14+), capacidad actual estimada y de fábrica (si el equipo la expone) y salud aproximada. |
+| **Certificado firmado** | Se firma con la clave del chip de seguridad. El comprador comprueba la firma en su navegador y compara la **huella** del equipo con la que muestra el celular del vendedor. Si alguien edita el certificado, la firma deja de ser válida. |
+
+Lo que una app **no** puede hacer, y por eso sigue siendo manual: cerrar cuentas ajenas, leer el estado del bloqueo FRP o el IMEI, ni restablecer el teléfono. Un restablecimiento hecho por una app activa el bloqueo de Google igual que un borrado remoto; por eso se hace siempre desde Ajustes, delante del comprador.
 
 ## Instalar el APK
 
